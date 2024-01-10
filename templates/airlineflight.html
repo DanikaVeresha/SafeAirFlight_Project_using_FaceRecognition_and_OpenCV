@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AirLineFlight</title>
+</head>
+<h5>Pilot Warning Notice: Hello {{ user.username }}. This panel shows an example of an aircraft
+    control panel. When certain conditions are triggered, the control security system will lock the
+    buttons below, as well as the data entry fields, to ensure safe air travel, do not attempt to
+    manually adjust the route and bypass the control security system, this will be regarded as an
+    unauthorized attempt to control the aircraft, to ensure safe air travel, your aircraft this route
+    will be adjusted to one of the predetermined points based on the closest distance and taking into
+    account the maximum safe air travel. The algorithm for calculating the safest and shortest route
+    will adjust your route independently! You will be notified of this in the route information below,
+    and all air travel corrections will be entered into the air travel registry database! We wish you
+    a successful flight and good weather!</h5>
+<body>
+<form action="airlineflight" method="post">
+    {% csrf_token %}
+    <label for="email">Your email@:</label>
+    <input type="text" name="email" placeholder="Your email"><br>
+    <label for="address">Your residential address:</label>
+    <input type="text" name="address" placeholder="Your residential address"><br>
+    <label for="company_name">Name of the company you work for:</label>
+    <input type="text" name="company_name" placeholder="Name of the company"><br>
+    <label for="flight_number">Number the flight:</label>
+    <input type="text" name="flight_number" placeholder="Number the flight"><br>
+    <label for="company_address">Address of the company you work for:</label>
+    <input type="text" name="company_address" placeholder="Address of the company you work for"><br>
+    <label for="departure_point">Departure Point:</label><br>
+    <select id="departure_point" name="departure_point">
+      <option value="International Airport Toronto">International Airport Toronto</option>
+      <option value="Montreal/Pierre Elliott Trudeau International Airport">Montreal/Pierre Elliott Trudeau International Airport</option>
+        <option value="Vancouver International Airport">Vancouver International Airport</option>-->
+      <option value="Calgary International Airport">Calgary International Airport</option>
+      <option value="Edmonton International Airport">Edmonton International Airport</option>
+      <option value="Halifax International Airport">Halifax International Airport</option>
+      <option value="Ottawa International Airport">Ottawa International Airport</option>
+      <option value="Quebec Jean Lesage International Airport">Quebec Jean Lesage International Airport</option>
+      <option value="Winnipeg/James Armstrong Richardson Winnipeg International Airport">Winnipeg/James Armstrong Richardson Winnipeg International Airport</option>
+      <option value="Greater Moncton International Airport">Greater Moncton International Airport</option>
+      <option value="Thunder Bay Airport">Thunder Bay Airport</option>
+      <option value="Victoria International Airport">Victoria International Airport</option>
+      <option value="Fort McMurray Airport">Fort McMurray Airport</option>
+      <option value="Timmins/Victor M. Power">Timmins/Victor M. Power</option>
+      <option value="Saskatoon International Airport">Saskatoon International Airport</option>
+      <option value="Kamloops: Kamloops Airport">Kamloops: Kamloops Airport</option>
+      <option value="Waterloo Airport Kitchener">Waterloo Airport Kitchener</option>
+      <option value="Windsor Airport">Windsor Airport</option>
+      <option value="Vancouver Boundary Bay Airport">Vancouver Boundary Bay Airport</option>
+      <option value="Toronto Island Airport">Toronto Island Airport</option>
+      <option value="Vancouver Cole Airport">Vancouver Cole Airport</option>
+    </select><br>
+    <label for="arrival_point">Arrival Point:</label><br>
+    <select id="arrival_point" name="arrival_point">
+      <option value="International Airport Toronto">International Airport Toronto</option>
+      <option value="Montreal/Pierre Elliott Trudeau International Airport">Montreal/Pierre Elliott Trudeau International Airport</option>
+        <option value="Vancouver International Airport">Vancouver International Airport</option>-->
+      <option value="Calgary International Airport">Calgary International Airport</option>
+      <option value="Edmonton International Airport">Edmonton International Airport</option>
+      <option value="Halifax International Airport">Halifax International Airport</option>
+      <option value="Ottawa International Airport">Ottawa International Airport</option>
+      <option value="Quebec Jean Lesage International Airport">Quebec Jean Lesage International Airport</option>
+      <option value="Winnipeg/James Armstrong Richardson Winnipeg International Airport">Winnipeg/James Armstrong Richardson Winnipeg International Airport</option>
+      <option value="Greater Moncton International Airport">Greater Moncton International Airport</option>
+      <option value="Thunder Bay Airport">Thunder Bay Airport</option>
+      <option value="Victoria International Airport">Victoria International Airport</option>
+      <option value="Fort McMurray Airport">Fort McMurray Airport</option>
+      <option value="Timmins/Victor M. Power">Timmins/Victor M. Power</option>
+      <option value="Saskatoon International Airport">Saskatoon International Airport</option>
+      <option value="Kamloops: Kamloops Airport">Kamloops: Kamloops Airport</option>
+      <option value="Waterloo Airport Kitchener">Waterloo Airport Kitchener</option>
+      <option value="Windsor Airport">Windsor Airport</option>
+      <option value="Vancouver Boundary Bay Airport">Vancouver Boundary Bay Airport</option>
+      <option value="Toronto Island Airport">Toronto Island Airport</option>
+      <option value="Vancouver Cole Airport">Vancouver Cole Airport</option>
+    </select><br>
+    <label for="flight_time">Flight time:</label>
+    <input type="time" id="flight_time" name="flight_time"><br>
+    <label for="departure_date">Departure date and time:</label>
+    <input type="date" id="departure_date" name="departure_date">
+    <input type="time" name="departure_time" placeholder="Departure time"><br>
+    <label for="arrival_date">Arrival date and time:</label>
+    <input type="date" id="arrival_date" name="arrival_date">
+    <input type="time" name="arrival_time" placeholder="Arrival time"><br>
+    <label for="number_of_passengers">Number of passengers:</label>
+    <input type="text" name="number_of_passengers" placeholder="Number of passengers"><button type="submit">ENTER</button>
+    {% for item in airlineflight_res %}
+        <p>
+            ID the flight in database: {{ item.id }};<br>
+            Flight registration date: {{ item.departure_date }};<br>
+            Flight number: {{ item.flight_number }};<br>
+            Pilot: {{ user.username }};<br>
+            Airline operating the flight: {{ item.aircompany }};<br>
+            Route: {{ item.airflight_route }};<br>
+            Departure point: {{ item.departure_point }};<br>
+            Departure point weather: {{ item.departure_point_weather }};<br>
+            Arrival point: {{ item.arrival_point }};<br>
+            Arrival point weather: {{ item.arrival_point_weather }};<br>
+            Distance: {{ item.distance_km }} km;<br>
+            Flight time: {{ item.flight_time }} hours/min;<br>
+            Departure date: {{ item.departure_date }};<br>
+            Departure time: {{ item.departure_time }} hours/min;<br>
+            Arrival date: {{ item.arrival_date }};<br>
+            Arrival time: {{ item.arrival_time }} hours/min;<br>
+            Numbers of passenger: {{ item.number_of_passengers }};<br>
+            Flight condition: {{ item.flight_condition }};<br>
+            Reason for correction: {{ item.reason_of_correction }};<br>
+        </p>
+    {% endfor %}
+</form>
+<br>
+<h5>Message to the Pilot: Dear pilot {{user.username }}, to send a request for manual control and
+    independent adjustment of the flight route, you need to fill out the form below for successful
+    approval of the request by the dispatcher. But be careful, this request will only allow you to
+    change the arrival point, if circumstances arise on the newly formed route that will violate the
+    safety of air travel, the air travel security system algorithm will be activated, which, in turn,
+    will independently adjust the route to the new arrival point, taking into account all circumstances.
+    At this stage you will not be able to change the route.</h5>
+<form action="manualcontrolrequest" method="post">
+    {% csrf_token %}
+    <label for="access_code">Manual Control Request:</label>
+    <input type="text" name="access_code" placeholder="Enter your access code"><br>
+    <label for="changed_arrival_point">Changed Arrival Point:</label><br>
+    <select id="changed_arrival_point" name="changed_arrival_point">
+      <option value="International Airport Toronto">International Airport Toronto</option>
+      <option value="Montreal/Pierre Elliott Trudeau International Airport">Montreal/Pierre Elliott Trudeau International Airport</option>
+        <option value="Vancouver International Airport">Vancouver International Airport</option>-->
+      <option value="Calgary International Airport">Calgary International Airport</option>
+      <option value="Edmonton International Airport">Edmonton International Airport</option>
+      <option value="Halifax International Airport">Halifax International Airport</option>
+      <option value="Ottawa International Airport">Ottawa International Airport</option>
+      <option value="Quebec Jean Lesage International Airport">Quebec Jean Lesage International Airport</option>
+      <option value="Winnipeg/James Armstrong Richardson Winnipeg International Airport">Winnipeg/James Armstrong Richardson Winnipeg International Airport</option>
+      <option value="Greater Moncton International Airport">Greater Moncton International Airport</option>
+      <option value="Thunder Bay Airport">Thunder Bay Airport</option>
+      <option value="Victoria International Airport">Victoria International Airport</option>
+      <option value="Fort McMurray Airport">Fort McMurray Airport</option>
+      <option value="Timmins/Victor M. Power">Timmins/Victor M. Power</option>
+      <option value="Saskatoon International Airport">Saskatoon International Airport</option>
+      <option value="Kamloops: Kamloops Airport">Kamloops: Kamloops Airport</option>
+      <option value="Waterloo Airport Kitchener">Waterloo Airport Kitchener</option>
+      <option value="Windsor Airport">Windsor Airport</option>
+      <option value="Vancouver Boundary Bay Airport">Vancouver Boundary Bay Airport</option>
+      <option value="Toronto Island Airport">Toronto Island Airport</option>
+      <option value="Vancouver Cole Airport">Vancouver Cole Airport</option>
+    </select><br>
+    <label for="reason_for_route_correction">Reason for correction:</label>
+    <input type="text" name="reason_for_route_correction" placeholder="Enter reason for correction"><br>
+    <label for="confirm_the_request">Confirm the request:</label>
+    <input type="text" name="confirm_the_request" placeholder="Enter your password"><button type="submit">MANUAL CONTROL REQUEST</button>
+    {% for item in airlineflight_res_v1 %}
+        <p>
+            ID the flight in database: {{ item.id }};<br>
+            Flight registration date: {{ item.departure_date }};<br>
+            Flight number: {{ item.flight_number }};<br>
+            Pilot: {{ user.username }};<br>
+            Airline operating the flight: {{ item.aircompany }};<br>
+            Route: {{ item.airflight_route }};<br>
+            Departure point: {{ item.departure_point }};<br>
+            Departure point weather: {{ item.departure_point_weather }};<br>
+            Arrival point: {{ item.arrival_point }};<br>
+            Arrival point weather: {{ item.arrival_point_weather }};<br>
+            Distance: {{ item.distance_km }} km;<br>
+            Flight time: impossible to install hours/min;<br>
+            Departure date: {{ item.departure_date }};<br>
+            Departure time: impossible to install hours/min;<br>
+            Arrival date: impossible to install;<br>
+            Arrival time: impossible to install hours/min;<br>
+            Numbers of passenger: {{ item.number_of_passengers }};<br>
+            Flight condition: {{ item.flight_condition }};<br>
+            Reason for correction: {{ item.reason_of_correction }};<br>
+            <h4>Message to the Pilot: Dear pilot {{ user.username }}, the dispatcher of the
+            Airline responsible for air handling of flight number {{ item.flight_number }} has
+            approved the request for manual control of the aircraft. You have changed your point
+            of arrival, indicating the reason for adjusting the point of arrival. All changes you
+            applied on this flight were entered into the route adjustment database. Your new route
+            has been adjusted by the aircraft control safety system algorithm, taking into account
+            all the specified new points of departure and arrival, as well as the circumstances
+            that arose along the route</h4><br>
+        </p>
+    {% endfor %}
+</form>
+</body>
+</html>

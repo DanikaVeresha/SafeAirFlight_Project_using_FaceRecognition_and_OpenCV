@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>LOGIN</title>
+</head>
+<body>
+<form action="login" method="post">
+    {% csrf_token %}
+    <div class="container">
+        <label for="username"><b>Your Name</b></label>
+        <input type="text" placeholder="Login: Pilot Name" name="username" required>
+        <label for="password"><b>Your Access Code</b></label>
+        <input type="text" placeholder="Login: Access Code" name="password" required>
+
+        <button type="submit">Login</button>
+    </div>
+</form>
+</body>
+</html>
