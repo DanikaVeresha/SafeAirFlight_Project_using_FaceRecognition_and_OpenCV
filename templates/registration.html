@@ -1,19 +1,22 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>REGISTRATION</title>
 </head>
+<h4>Dear pilot, please enter your first and last name in the “Login” input field, and in the “Password”
+    field enter your first and last name and flight number without spaces.</h4>
 <body>
 <form action="registration" method="post">
     {% csrf_token %}
     <div class="container">
         <label for="username"><b>Your Name</b></label>
-        <input type="text" placeholder="Registration: Pilot Name" name="username" required>
+        <input type="text" placeholder="Pilot Name" name="username" required>
         <label for="password"><b>Your Access Codee</b></label>
-        <input type="text" placeholder="Registration: Access Code" name="password" required>
+        <input type="text" placeholder="Access Code" name="password" required>
 
-        <button type="submit">Registration</button>
+        <button type="submit" style="background-color:MediumSeaGreen;">Registration</button>
     </div>
 </form>
 </body>

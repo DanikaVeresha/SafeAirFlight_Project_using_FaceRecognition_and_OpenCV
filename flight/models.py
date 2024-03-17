@@ -90,6 +90,7 @@ class DBManualControlRequest(models.Model):
     id_users = models.UUIDField()
     id_DBManualControlRequest = models.IntegerField
     reason = models.CharField(max_length=10000, null=True)
+    day_of_the_week = models.IntegerField(null=True)
     confirm_request = models.CharField(max_length=10000, null=True)
     old_departure_point = models.CharField(max_length=10000, null=True)
     old_arrival_point = models.CharField(max_length=10000, null=True)
@@ -99,6 +100,8 @@ class DBManualControlRequest(models.Model):
     changed_arrival_point = models.CharField(max_length=10000, null=True)
     changed_arrival_latitude = models.DecimalField(decimal_places=4, max_digits=10, null=True)
     changed_arrival_longitude = models.DecimalField(decimal_places=4, max_digits=10, null=True)
+    distance_km = models.FloatField(null=True)
+
 
 
 

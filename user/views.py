@@ -35,3 +35,4 @@ def registration_(request):
 def logout_(request):
     logout(request)
     return redirect('/user/login')
+
