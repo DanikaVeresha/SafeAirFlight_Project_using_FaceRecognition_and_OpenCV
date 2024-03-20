@@ -46,7 +46,7 @@ def get_routs_list_pilot(request):
                                              'company_name',
                                              'flight_number',
                                              'pilot_registration_date')
-            return render(request, 'routs_list_pilot.html', {'list': result})
+            return render(request, 'list_pilot.shtml', {'list': result})
         else:
             return redirect('/user/login')
     return render(request, 'login.html')

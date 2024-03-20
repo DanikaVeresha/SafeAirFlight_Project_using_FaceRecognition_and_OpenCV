@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Routs list pilot</title>
+</head>
+<h4>Routs List Pilots</h4>
+<form action="back" method="post">
+    {% csrf_token %}
+    <div class="container">
+        <button type="submit" style="background-color:DodgerBlue;">Back</button>
+    </div>
+
+</form>
+    {% for item in list %}
+    <p>
+        Username Pilot: {{ item.username }};<br>
+        Company name where You work: {{ item.company_name }};<br>
+        Number Flight: {{ item.flight_number }};<br>
+        Pilot registration date: {{ item.pilot_registration_date }};<br>
+    </p>
+    {% endfor %}
+<body>
+
+</body>
+</html>
+
+
