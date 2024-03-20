@@ -36,3 +36,21 @@ def logout_(request):
     logout(request)
     return redirect('/user/login')
 
+
+def get_routs_list_pilot(request):
+    pilot = 'pilot'
+    if request.method == 'POST':
+        your_request = request.POST.get('request')
+        if your_request == pilot:
+            result = DBPilots.objects.values('username',
+                                             'company_name',
+                                             'flight_number',
+                                             'pilot_registration_date')
+            return render(request, 'routs_list_pilot.html', {'list': result})
+        else:
+            return redirect('/user/login')
+    return render(request, 'login.html')
+
+
+def back(request):
+    return redirect('/user/login')

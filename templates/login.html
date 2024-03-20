@@ -5,6 +5,18 @@
     <meta charset="UTF-8">
     <title>LOGIN</title>
 </head>
+<h4>Dear user if you want to get routs list pilot, please enter your request below(value for your
+    request "pilot")</h4>
+<form action="get" method="post">
+    {% csrf_token %}
+    <div class="container">
+        <label for="request"><b>Your request:</b></label>
+        <input type="text" name="request" placeholder="Enter your request">
+
+        <button type="submit" style="background-color:DodgerBlue;">Get list</button>
+    </div>
+
+</form>
 <h4>Dear pilot, please enter your first and last name in the “Login” input field, and in the “Password”
     field enter your first and last name and flight number without spaces.</h4>
 <body>

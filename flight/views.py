@@ -4,10 +4,12 @@ from datetime import datetime
 from geopy.geocoders import Nominatim
 from haversine import haversine, Unit
 from django.shortcuts import render, redirect
-from flight.models import DBFlight, DBPilots, DBReason, DBArrivalPoint, DBDeparturePoint, DBAirCompany, DBManualControlRequest
+from flight.models import (DBFlight, DBPilots, DBReason, DBArrivalPoint,
+                           DBDeparturePoint, DBAirCompany, DBManualControlRequest)
 import googlemaps
 import polyline
-from flight.config import api_key_points, OPENWEATHER_API, NOFLYZONE, access_code_conf
+from flight.config import (api_key_points, OPENWEATHER_API, NOFLYZONE, access_code_conf,
+                           time_Flight, company_list)
 import math
 import requests
 import cv2
@@ -23,383 +25,391 @@ def airflight(request):
     if request.method == 'POST':
         pilots_email = request.POST.get('email')
         pilots_address_registration = request.POST.get('address')
-        company_name = request.POST.get('company_name')
         flight_number = request.POST.get('flight_number')
-        company_address = request.POST.get('company_address')
         departure_point = request.POST.get('departure_point')
         arrival_point = request.POST.get('arrival_point')
-        flight_time = request.POST.get('flight_time')
         departure_time = request.POST.get('departure_time')
         departure_date = request.POST.get('departure_date')
-        arrival_time = request.POST.get('arrival_time')
         arrival_date = request.POST.get('arrival_date')
         number_of_passengers = request.POST.get('number_of_passengers')
 
         res_pilots = DBPilots.objects.filter(id_users=pilot.id_users)
-        for itemPilot in res_pilots:
-            itemPilot.username = request.user.username
-            itemPilot.password = request.user.password
-            itemPilot.email = pilots_email
-            itemPilot.address_registration = pilots_address_registration
-            itemPilot.company_name = company_name
-            itemPilot.flight_number = flight_number
-            itemPilot.departure_point = departure_point
-            itemPilot.arrival_point = arrival_point
-            itemPilot.pilot_registration_date = datetime.now()
-            itemPilot.save()
+        for key in company_list:
+            if company_list[key] == flight_number[0]:
+                for itemPilot in res_pilots:
+                    itemPilot.username = request.user.username
+                    itemPilot.password = request.user.password
+                    itemPilot.email = pilots_email
+                    itemPilot.address_registration = pilots_address_registration
+                    itemPilot.company_name = key
+                    itemPilot.flight_number = flight_number
+                    itemPilot.departure_point = departure_point
+                    itemPilot.arrival_point = arrival_point
+                    itemPilot.pilot_registration_date = datetime.now()
+                    itemPilot.save()
 
-        company_obj = DBAirCompany(
-            id_users=pilot.id_users,
-            name=company_name,
-            pilot=request.user.username,
-            company_address=company_address
-        )
-        company_obj.save()
+                geolocator = Nominatim(user_agent="flight")
+                location_company_address = geolocator.geocode(key)
+                company_address_latitude = location_company_address.latitude
+                company_address_longitude = location_company_address.longitude
+                company_address = geolocator.reverse((company_address_latitude,
+                                                      company_address_longitude))
 
-        geolocator = Nominatim(user_agent="flight")
-        location_departure_point = geolocator.geocode(departure_point)
-        departure_latitude = location_departure_point.latitude
-        departure_longitude = location_departure_point.longitude
-        departure_point_address = geolocator.reverse((departure_latitude,
-                                                      departure_longitude))
-        departure_obj = DBDeparturePoint(
-            id_users=pilot.id_users,
-            point=departure_point,
-            airport_address=departure_point_address,
-            latitude=departure_latitude,
-            longitude=departure_longitude
-        )
-        departure_obj.save()
-
-        geolocator = Nominatim(user_agent="flight")
-        location_arrival_point = geolocator.geocode(arrival_point)
-        arrival_latitude = location_arrival_point.latitude
-        arrival_longitude = location_arrival_point.longitude
-        arrival_point_address = geolocator.reverse((arrival_latitude,
-                                                    arrival_longitude))
-        arrival_obj = DBArrivalPoint(
-            id_users=pilot.id_users,
-            point=arrival_point,
-            airport_address=arrival_point_address,
-            latitude=arrival_latitude,
-            longitude=arrival_longitude
-        )
-        arrival_obj.save()
-
-        distance_km = haversine((departure_latitude,
-                                 departure_longitude),
-                                (arrival_latitude,
-                                 arrival_longitude),
-                                unit=Unit.KILOMETERS)
-        flight_obj = DBFlight(
-            id_users=pilot.id_users,
-            flight_number=flight_number,
-            pilot=request.user.username,
-            aircompany=company_name,
-            airflight_route=(departure_point, arrival_point),
-            departure_point=departure_point,
-            departure_point_address_airport=departure_point_address,
-            departure_point_latitude=departure_latitude,
-            departure_point_longitude=departure_longitude,
-            arrival_point=arrival_point,
-            arrival_point_address_airport=arrival_point_address,
-            arrival_point_latitude=arrival_latitude,
-            arrival_point_longitude=arrival_longitude,
-            distance_km=distance_km,
-            flight_time=flight_time,
-            departure_date=departure_date,
-            departure_time=departure_time,
-            arrival_date=arrival_date,
-            arrival_time=arrival_time,
-            number_of_passengers=number_of_passengers
-        )
-        flight_obj.save()
-
-        now = datetime.now()
-        gmaps = googlemaps.Client(key=api_key_points)
-        result_gmaps = gmaps.directions(departure_point,
-                                        arrival_point,
-                                        mode="transit",
-                                        departure_time=now)
-        raw = result_gmaps[0]['overview_polyline']['points']
-        points = polyline.decode(raw)
-        for item in points:
-            url_v1 = requests.get(
-                "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
-                (float(item[0]), float(item[1]), str(OPENWEATHER_API))
-            )
-            data_v1 = url_v1.json()
-
-            no_fly_zone = NOFLYZONE
-            if no_fly_zone == item:
-                object_rotation_angel = 10 * (3.14 / 180)
-                x_latitude_zone = (item[0] * math.cos(object_rotation_angel)) - \
-                                  (item[1] * math.sin(object_rotation_angel))
-                y_longitude_zone = (item[0] * math.sin(object_rotation_angel)) + \
-                                   (item[1] * math.cos(object_rotation_angel))
-
-                url_v1_2 = requests.get(
-                    "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
-                    (float(x_latitude_zone), float(y_longitude_zone), str(OPENWEATHER_API))
-                )
-                data_v1_2 = url_v1_2.json()
-                if data_v1_2['weather'][0]['description'] == 'thunderstorm':
-                    object_rotation_angel_v1_2 = 10 * (3.14 / 180)
-                    x_latitude_v1_2 = (x_latitude_zone * math.cos(object_rotation_angel_v1_2)) - \
-                                      (y_longitude_zone * math.sin(object_rotation_angel_v1_2))
-                    y_longitude_v1_2 = (x_latitude_zone * math.sin(object_rotation_angel_v1_2)) + \
-                                       (y_longitude_zone * math.cos(object_rotation_angel_v1_2))
-
-                    url_v1_3 = requests.get(
-                        "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
-                        (float(x_latitude_v1_2), float(y_longitude_v1_2), str(OPENWEATHER_API))
-                    )
-                    data_v1_3 = url_v1_3.json()
-                    temp_v1_3 = float(data_v1_3['main']['temp']) - 273.15
-                    temp_min_v1_3 = float(data_v1_3['main']['temp_min']) - 273.15
-                    temp_max_v1_3 = float(data_v1_3['main']['temp_max']) - 273.15
-                    dict_v1_3 = {
-                        "temp": round(temp_v1_3, 2),
-                        "temp_min": round(temp_min_v1_3, 2),
-                        "temp_max": round(temp_max_v1_3, 2),
-                        "wind and speed": data_v1_3['wind']['speed']
-                    }
-                    reason_obj_v1_3 = DBReason(
-                        id_users=pilot.id_users,
-                        first_reason='No fly zone and:',
-                        second_reason=data_v1_2['weather'][0]['description'],
-                        old_departure_point=departure_point,
-                        old_arrival_point=arrival_point,
-                        new_departure_point=departure_point,
-                        original_latitude=item[0],
-                        original_longitude=item[1],
-                        changed_arrival_point=arrival_point,
-                        corrected_latitude=(x_latitude_zone, x_latitude_v1_2),
-                        corrected_longitude=(y_longitude_zone, y_longitude_v1_2),
-                        weather_new_location=(data_v1_3['weather'][0]['description']),
-                        description_weather=dict_v1_3
-                    )
-                    reason_obj_v1_3.save()
-
-                    weather_departure_point_v1_3 = (departure_latitude,
-                                                    departure_longitude)
-                    weather_arrival_point_v1_3 = (arrival_latitude,
-                                                  arrival_longitude)
-
-                    url_Departure_v1_3 = requests.get(
-                        "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
-                        (float(weather_departure_point_v1_3[0]), float(weather_departure_point_v1_3[1]),
-                         str(OPENWEATHER_API))
-                    )
-                    data_Departure_v1_3 = url_Departure_v1_3.json()
-                    temp_Departure_v1_3 = float(data_Departure_v1_3['main']['temp']) - 273.15
-                    temp_min_Departure_v1_3 = float(data_Departure_v1_3['main']['temp_min']) - 273.15
-                    temp_max_Departure_v1_3 = float(data_Departure_v1_3['main']['temp_max']) - 273.15
-                    dict_original_weatherDeparture_v1_3 = {
-                        "conditions": data_Departure_v1_3['weather'][0]['description'],
-                        "temp": round(temp_Departure_v1_3, 2),
-                        "temp_min": round(temp_min_Departure_v1_3, 2),
-                        "temp_max": round(temp_max_Departure_v1_3, 2),
-                        "wind and speed": data_Departure_v1_3['wind']['speed']
-                    }
-
-                    url_Arrival_v1_3 = requests.get(
-                        "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
-                        (float(weather_arrival_point_v1_3[0]), float(weather_arrival_point_v1_3[1]),
-                         str(OPENWEATHER_API))
-                    )
-                    data_Arrival_v1_3 = url_Arrival_v1_3.json()
-                    temp_Arrival_v1_3 = float(data_Arrival_v1_3['main']['temp']) - 273.15
-                    temp_min_Arrival_v1_3 = float(data_Arrival_v1_3['main']['temp_min']) - 273.15
-                    temp_max_Arrival_v1_3 = float(data_Arrival_v1_3['main']['temp_max']) - 273.15
-                    dict_original_weatherArrival_v1_3 = {
-                        "conditions": data_Arrival_v1_3['weather'][0]['description'],
-                        "temp": round(temp_Arrival_v1_3, 2),
-                        "temp_min": round(temp_min_Arrival_v1_3, 2),
-                        "temp_max": round(temp_max_Arrival_v1_3, 2),
-                        "wind and speed": data_Arrival_v1_3['wind']['speed']
-                    }
-                    res_flight_v1_3 = DBFlight.objects.filter(id_users=pilot.id_users)
-                    for item_v1_3 in res_flight_v1_3:
-                        item_v1_3.flight_condition = 'with correction'
-                        item_v1_3.reason_of_correction = ('No fly zone and:',
-                                                          data_v1_2['weather'][0]['description'])
-                        item_v1_3.departure_point_weather = dict_original_weatherDeparture_v1_3
-                        item_v1_3.arrival_point_weather = dict_original_weatherArrival_v1_3
-                        item_v1_3.save()
-                else:
-                    weather_departure_point_v1_4 = (departure_latitude,
-                                                    departure_longitude)
-                    weather_arrival_point_v1_4 = (arrival_latitude,
-                                                  arrival_longitude)
-
-                    url_Departure_v1_4 = requests.get(
-                        "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
-                        (float(weather_departure_point_v1_4[0]), float(weather_departure_point_v1_4[1]),
-                         str(OPENWEATHER_API))
-                    )
-                    data_Departure_v1_4 = url_Departure_v1_4.json()
-                    temp_Departure_v1_4 = float(data_Departure_v1_4['main']['temp']) - 273.15
-                    temp_min_Departure_v1_4 = float(data_Departure_v1_4['main']['temp_min']) - 273.15
-                    temp_max_Departure_v1_4 = float(data_Departure_v1_4['main']['temp_max']) - 273.15
-                    dict_normal_weatherDeparture_v1_4 = {
-                        "conditions": data_Departure_v1_4['weather'][0]['description'],
-                        "temp": round(temp_Departure_v1_4, 2),
-                        "temp_min": round(temp_min_Departure_v1_4, 2),
-                        "temp_max": round(temp_max_Departure_v1_4, 2),
-                        "wind and speed": data_Departure_v1_4['wind']['speed']
-                    }
-
-                    url_Arrival_v1_4 = requests.get(
-                        "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
-                        (float(weather_arrival_point_v1_4[0]), float(weather_arrival_point_v1_4[1]),
-                         str(OPENWEATHER_API))
-                    )
-                    data_Arrival_v1_4 = url_Arrival_v1_4.json()
-                    temp_Arrival_v1_4 = float(data_Arrival_v1_4['main']['temp']) - 273.15
-                    temp_min_Arrival_v1_4 = float(data_Arrival_v1_4['main']['temp_min']) - 273.15
-                    temp_max_Arrival_v1_4 = float(data_Arrival_v1_4['main']['temp_max']) - 273.15
-                    dict_original_weatherArrival_v1_4 = {
-                        "conditions": data_Arrival_v1_4['weather'][0]['description'],
-                        "temp": round(temp_Arrival_v1_4, 2),
-                        "temp_min": round(temp_min_Arrival_v1_4, 2),
-                        "temp_max": round(temp_max_Arrival_v1_4, 2),
-                        "wind and speed": data_Arrival_v1_4['wind']['speed']
-                    }
-                    res_flight_v1_4 = DBFlight.objects.filter(id_users=pilot.id_users)
-                    for item_v1_4 in res_flight_v1_4:
-                        item_v1_4.reason_of_correction = 'No fly zone',
-                        item_v1_4.departure_point_weather = dict_normal_weatherDeparture_v1_4
-                        item_v1_4.arrival_point_weather = dict_original_weatherArrival_v1_4
-                        item_v1_4.save()
-            elif data_v1['weather'][0]['description'] == 'thunderstorm':
-                object_rotation_angel_v2 = 10 * (3.14 / 180)
-                x_latitude_v2 = (item[0] * math.cos(object_rotation_angel_v2)) - \
-                                (item[1] * math.sin(object_rotation_angel_v2))
-                y_longitude_v2 = (item[0] * math.sin(object_rotation_angel_v2)) + \
-                                 (item[1] * math.cos(object_rotation_angel_v2))
-
-                url_v2 = requests.get(
-                    "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
-                    (float(x_latitude_v2), float(y_longitude_v2), str(OPENWEATHER_API))
-                )
-                data_v2 = url_v2.json()
-                temp_v2 = float(data_v2['main']['temp']) - 273.15
-                temp_min_v2 = float(data_v2['main']['temp_min']) - 273.15
-                temp_max_v2 = float(data_v2['main']['temp_max']) - 273.15
-                dict_v2 = {
-                    "temp": round(temp_v2, 2),
-                    "temp_min": round(temp_min_v2, 2),
-                    "temp_max": round(temp_max_v2, 2),
-                    "wind and speed": data_v2['wind']['speed']
-                }
-                reason_obj_v2 = DBReason(
+                company_obj = DBAirCompany(
                     id_users=pilot.id_users,
-                    first_reason=data_v1['weather'][0]['description'],
-                    second_reason='absent',
-                    old_departure_point=departure_point,
-                    old_arrival_point=arrival_point,
-                    new_departure_point=departure_point,
-                    original_latitude=item[0],
-                    original_longitude=item[1],
-                    changed_arrival_point=arrival_point,
-                    corrected_latitude=x_latitude_v2,
-                    corrected_longitude=y_longitude_v2,
-                    weather_new_location=data_v2['weather'][0]['description'],
-                    description_weather=dict_v2
+                    name=key,
+                    pilot=request.user.username,
+                    company_address=company_address
                 )
-                reason_obj_v2.save()
+                company_obj.save()
 
-                weather_departure_point_v2 = (departure_latitude,
-                                              departure_longitude)
-                weather_arrival_point_v2 = (arrival_latitude,
-                                            arrival_longitude)
-
-                url_Departure_v2 = requests.get(
-                    "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
-                    (float(weather_departure_point_v2[0]), float(weather_departure_point_v2[1]),
-                     str(OPENWEATHER_API))
+                geolocator = Nominatim(user_agent="flight")
+                location_departure_point = geolocator.geocode(departure_point)
+                departure_latitude = location_departure_point.latitude
+                departure_longitude = location_departure_point.longitude
+                departure_point_address = geolocator.reverse((departure_latitude,
+                                                              departure_longitude))
+                departure_obj = DBDeparturePoint(
+                    id_users=pilot.id_users,
+                    point=departure_point,
+                    airport_address=departure_point_address,
+                    latitude=departure_latitude,
+                    longitude=departure_longitude
                 )
-                data_Departure_v2 = url_Departure_v2.json()
-                temp_Departure_v2 = float(data_Departure_v2['main']['temp']) - 273.15
-                temp_min_Departure_v2 = float(data_Departure_v2['main']['temp_min']) - 273.15
-                temp_max_Departure_v2 = float(data_Departure_v2['main']['temp_max']) - 273.15
-                dict_original_weatherDeparture_v2 = {
-                    "conditions": data_Departure_v2['weather'][0]['description'],
-                    "temp": round(temp_Departure_v2, 2),
-                    "temp_min": round(temp_min_Departure_v2, 2),
-                    "temp_max": round(temp_max_Departure_v2, 2),
-                    "wind and speed": data_Departure_v2['wind']['speed']
-                }
+                departure_obj.save()
 
-                url_Arrival_v2 = requests.get(
-                    "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
-                    (float(weather_arrival_point_v2[0]), float(weather_arrival_point_v2[1]),
-                     str(OPENWEATHER_API))
+                geolocator = Nominatim(user_agent="flight")
+                location_arrival_point = geolocator.geocode(arrival_point)
+                arrival_latitude = location_arrival_point.latitude
+                arrival_longitude = location_arrival_point.longitude
+                arrival_point_address = geolocator.reverse((arrival_latitude,
+                                                            arrival_longitude))
+                arrival_obj = DBArrivalPoint(
+                    id_users=pilot.id_users,
+                    point=arrival_point,
+                    airport_address=arrival_point_address,
+                    latitude=arrival_latitude,
+                    longitude=arrival_longitude
                 )
-                data_Arrival_v2 = url_Arrival_v2.json()
-                temp_Arrival_v2 = float(data_Arrival_v2['main']['temp']) - 273.15
-                temp_min_Arrival_v2 = float(data_Arrival_v2['main']['temp_min']) - 273.15
-                temp_max_Arrival_v2 = float(data_Arrival_v2['main']['temp_max']) - 273.15
-                dict_original_weatherArrival_v2 = {
-                    "conditions": data_Arrival_v2['weather'][0]['description'],
-                    "temp": round(temp_Arrival_v2, 2),
-                    "temp_min": round(temp_min_Arrival_v2, 2),
-                    "temp_max": round(temp_max_Arrival_v2, 2),
-                    "wind and speed": data_Arrival_v2['wind']['speed']
-                }
-                res_flight_v2 = DBFlight.objects.filter(id_users=pilot.id_users)
-                for item_v2 in res_flight_v2:
-                    item_v2.flight_condition = 'with correction'
-                    item_v2.reason_of_correction = data_v1['weather'][0]['description']
-                    item_v2.weather_departure_point = dict_original_weatherDeparture_v2
-                    item_v2.weather_arrival_point = dict_original_weatherArrival_v2
-                    item_v2.save()
-            else:
-                weather_departure_point_v3 = (departure_latitude,
-                                              departure_longitude)
-                weather_arrival_point_v3 = (arrival_latitude,
-                                            arrival_longitude)
+                arrival_obj.save()
 
-                url_Departure_v3 = requests.get(
-                    "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
-                    (float(weather_departure_point_v3[0]), float(weather_departure_point_v3[1]),
-                     str(OPENWEATHER_API))
-                )
-                data_Departure_v3 = url_Departure_v3.json()
-                temp_Departure_v3 = float(data_Departure_v3['main']['temp']) - 273.15
-                temp_min_Departure_v3 = float(data_Departure_v3['main']['temp_min']) - 273.15
-                temp_max_Departure_v3 = float(data_Departure_v3['main']['temp_max']) - 273.15
-                dict_original_weatherDeparture_v3 = {
-                    "conditions": data_Departure_v3['weather'][0]['description'],
-                    "temp": round(temp_Departure_v3, 2),
-                    "temp_min": round(temp_min_Departure_v3, 2),
-                    "temp_max": round(temp_max_Departure_v3, 2),
-                    "wind and speed": data_Departure_v3['wind']['speed']
-                }
+                distance_km = haversine((departure_latitude,
+                                         departure_longitude),
+                                        (arrival_latitude,
+                                         arrival_longitude),
+                                        unit=Unit.KILOMETERS)
 
-                url_Arrival_v3 = requests.get(
-                    "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
-                    (float(weather_arrival_point_v3[0]), float(weather_arrival_point_v3[1]),
-                     str(OPENWEATHER_API))
+                medium_speed_object = random.choice(time_Flight)    #The conditional random cruising speed of the aircraft was
+                                                                    # taken in the range from 880–926 km/h (475–500 knots)
+                timeFlight = round(distance_km)/medium_speed_object
+                flight_obj = DBFlight(
+                    id_users=pilot.id_users,
+                    flight_number=flight_number,
+                    pilot=request.user.username,
+                    aircompany=key,
+                    airflight_route=(departure_point, arrival_point),
+                    departure_point=departure_point,
+                    departure_point_address_airport=departure_point_address,
+                    departure_point_latitude=departure_latitude,
+                    departure_point_longitude=departure_longitude,
+                    arrival_point=arrival_point,
+                    arrival_point_address_airport=arrival_point_address,
+                    arrival_point_latitude=arrival_latitude,
+                    arrival_point_longitude=arrival_longitude,
+                    distance_km=round(distance_km),
+                    flight_time=round(timeFlight, 2),
+                    departure_date=departure_date,
+                    departure_time=departure_time,
+                    arrival_date=arrival_date,
+                    number_of_passengers=number_of_passengers
                 )
-                data_Arrival_v3 = url_Arrival_v3.json()
-                temp_Arrival_v3 = float(data_Arrival_v3['main']['temp']) - 273.15
-                temp_min_Arrival_v3 = float(data_Arrival_v3['main']['temp_min']) - 273.15
-                temp_max_Arrival_v3 = float(data_Arrival_v3['main']['temp_max']) - 273.15
-                dict_original_weatherArrival_v3 = {
-                    "conditions": data_Arrival_v3['weather'][0]['description'],
-                    "temp": round(temp_Arrival_v3, 2),
-                    "temp_min": round(temp_min_Arrival_v3, 2),
-                    "temp_max": round(temp_max_Arrival_v3, 2),
-                    "wind and speed": data_Arrival_v3['wind']['speed']
-                }
-                res_flight_v3 = DBFlight.objects.filter(id_users=pilot.id_users)
-                for item_v3 in res_flight_v3:
-                    item_v3.reason_of_correction = 'absent'
-                    item_v3.departure_point_weather = dict_original_weatherDeparture_v3
-                    item_v3.arrival_point_weather = dict_original_weatherArrival_v3
-                    item_v3.save()
+                flight_obj.save()
+
+                now = datetime.now()
+                gmaps = googlemaps.Client(key=api_key_points)
+                result_gmaps = gmaps.directions(departure_point,
+                                                arrival_point,
+                                                mode="transit",
+                                                departure_time=now)
+                raw = result_gmaps[0]['overview_polyline']['points']
+                points = polyline.decode(raw)
+                for item in points:
+                    url_v1 = requests.get(
+                        "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
+                        (float(item[0]), float(item[1]), str(OPENWEATHER_API))
+                    )
+                    data_v1 = url_v1.json()
+
+                    no_fly_zone = NOFLYZONE
+                    if no_fly_zone == item:
+                        object_rotation_angel = 10 * (3.14 / 180)
+                        x_latitude_zone = (item[0] * math.cos(object_rotation_angel)) - \
+                                          (item[1] * math.sin(object_rotation_angel))
+                        y_longitude_zone = (item[0] * math.sin(object_rotation_angel)) + \
+                                           (item[1] * math.cos(object_rotation_angel))
+
+                        url_v1_2 = requests.get(
+                            "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
+                            (float(x_latitude_zone), float(y_longitude_zone), str(OPENWEATHER_API))
+                        )
+                        data_v1_2 = url_v1_2.json()
+                        if data_v1_2['weather'][0]['description'] == 'thunderstorm':
+                            object_rotation_angel_v1_2 = 10 * (3.14 / 180)
+                            x_latitude_v1_2 = (x_latitude_zone * math.cos(object_rotation_angel_v1_2)) - \
+                                              (y_longitude_zone * math.sin(object_rotation_angel_v1_2))
+                            y_longitude_v1_2 = (x_latitude_zone * math.sin(object_rotation_angel_v1_2)) + \
+                                               (y_longitude_zone * math.cos(object_rotation_angel_v1_2))
+
+                            url_v1_3 = requests.get(
+                                "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
+                                (float(x_latitude_v1_2), float(y_longitude_v1_2), str(OPENWEATHER_API))
+                            )
+                            data_v1_3 = url_v1_3.json()
+                            temp_v1_3 = float(data_v1_3['main']['temp']) - 273.15
+                            temp_min_v1_3 = float(data_v1_3['main']['temp_min']) - 273.15
+                            temp_max_v1_3 = float(data_v1_3['main']['temp_max']) - 273.15
+                            dict_v1_3 = {
+                                "temp": round(temp_v1_3, 2),
+                                "temp_min": round(temp_min_v1_3, 2),
+                                "temp_max": round(temp_max_v1_3, 2),
+                                "wind and speed": data_v1_3['wind']['speed']
+                            }
+                            reason_obj_v1_3 = DBReason(
+                                id_users=pilot.id_users,
+                                first_reason='No fly zone and:',
+                                second_reason=data_v1_2['weather'][0]['description'],
+                                old_departure_point=departure_point,
+                                old_arrival_point=arrival_point,
+                                new_departure_point=departure_point,
+                                original_latitude=item[0],
+                                original_longitude=item[1],
+                                changed_arrival_point=arrival_point,
+                                corrected_latitude=(x_latitude_zone, x_latitude_v1_2),
+                                corrected_longitude=(y_longitude_zone, y_longitude_v1_2),
+                                weather_new_location=(data_v1_3['weather'][0]['description']),
+                                description_weather=dict_v1_3
+                            )
+                            reason_obj_v1_3.save()
+
+                            weather_departure_point_v1_3 = (departure_latitude,
+                                                            departure_longitude)
+                            weather_arrival_point_v1_3 = (arrival_latitude,
+                                                          arrival_longitude)
+
+                            url_Departure_v1_3 = requests.get(
+                                "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
+                                (float(weather_departure_point_v1_3[0]), float(weather_departure_point_v1_3[1]),
+                                 str(OPENWEATHER_API))
+                            )
+                            data_Departure_v1_3 = url_Departure_v1_3.json()
+                            temp_Departure_v1_3 = float(data_Departure_v1_3['main']['temp']) - 273.15
+                            temp_min_Departure_v1_3 = float(data_Departure_v1_3['main']['temp_min']) - 273.15
+                            temp_max_Departure_v1_3 = float(data_Departure_v1_3['main']['temp_max']) - 273.15
+                            dict_original_weatherDeparture_v1_3 = {
+                                "conditions": data_Departure_v1_3['weather'][0]['description'],
+                                "temp": round(temp_Departure_v1_3, 2),
+                                "temp_min": round(temp_min_Departure_v1_3, 2),
+                                "temp_max": round(temp_max_Departure_v1_3, 2),
+                                "wind and speed": data_Departure_v1_3['wind']['speed']
+                            }
+
+                            url_Arrival_v1_3 = requests.get(
+                                "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
+                                (float(weather_arrival_point_v1_3[0]), float(weather_arrival_point_v1_3[1]),
+                                 str(OPENWEATHER_API))
+                            )
+                            data_Arrival_v1_3 = url_Arrival_v1_3.json()
+                            temp_Arrival_v1_3 = float(data_Arrival_v1_3['main']['temp']) - 273.15
+                            temp_min_Arrival_v1_3 = float(data_Arrival_v1_3['main']['temp_min']) - 273.15
+                            temp_max_Arrival_v1_3 = float(data_Arrival_v1_3['main']['temp_max']) - 273.15
+                            dict_original_weatherArrival_v1_3 = {
+                                "conditions": data_Arrival_v1_3['weather'][0]['description'],
+                                "temp": round(temp_Arrival_v1_3, 2),
+                                "temp_min": round(temp_min_Arrival_v1_3, 2),
+                                "temp_max": round(temp_max_Arrival_v1_3, 2),
+                                "wind and speed": data_Arrival_v1_3['wind']['speed']
+                            }
+                            res_flight_v1_3 = DBFlight.objects.filter(id_users=pilot.id_users)
+                            for item_v1_3 in res_flight_v1_3:
+                                item_v1_3.flight_condition = 'with correction'
+                                item_v1_3.reason_of_correction = ('No fly zone and:',
+                                                                  data_v1_2['weather'][0]['description'])
+                                item_v1_3.departure_point_weather = dict_original_weatherDeparture_v1_3
+                                item_v1_3.arrival_point_weather = dict_original_weatherArrival_v1_3
+                                item_v1_3.save()
+                        else:
+                            weather_departure_point_v1_4 = (departure_latitude,
+                                                            departure_longitude)
+                            weather_arrival_point_v1_4 = (arrival_latitude,
+                                                          arrival_longitude)
+
+                            url_Departure_v1_4 = requests.get(
+                                "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
+                                (float(weather_departure_point_v1_4[0]), float(weather_departure_point_v1_4[1]),
+                                 str(OPENWEATHER_API))
+                            )
+                            data_Departure_v1_4 = url_Departure_v1_4.json()
+                            temp_Departure_v1_4 = float(data_Departure_v1_4['main']['temp']) - 273.15
+                            temp_min_Departure_v1_4 = float(data_Departure_v1_4['main']['temp_min']) - 273.15
+                            temp_max_Departure_v1_4 = float(data_Departure_v1_4['main']['temp_max']) - 273.15
+                            dict_normal_weatherDeparture_v1_4 = {
+                                "conditions": data_Departure_v1_4['weather'][0]['description'],
+                                "temp": round(temp_Departure_v1_4, 2),
+                                "temp_min": round(temp_min_Departure_v1_4, 2),
+                                "temp_max": round(temp_max_Departure_v1_4, 2),
+                                "wind and speed": data_Departure_v1_4['wind']['speed']
+                            }
+
+                            url_Arrival_v1_4 = requests.get(
+                                "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
+                                (float(weather_arrival_point_v1_4[0]), float(weather_arrival_point_v1_4[1]),
+                                 str(OPENWEATHER_API))
+                            )
+                            data_Arrival_v1_4 = url_Arrival_v1_4.json()
+                            temp_Arrival_v1_4 = float(data_Arrival_v1_4['main']['temp']) - 273.15
+                            temp_min_Arrival_v1_4 = float(data_Arrival_v1_4['main']['temp_min']) - 273.15
+                            temp_max_Arrival_v1_4 = float(data_Arrival_v1_4['main']['temp_max']) - 273.15
+                            dict_original_weatherArrival_v1_4 = {
+                                "conditions": data_Arrival_v1_4['weather'][0]['description'],
+                                "temp": round(temp_Arrival_v1_4, 2),
+                                "temp_min": round(temp_min_Arrival_v1_4, 2),
+                                "temp_max": round(temp_max_Arrival_v1_4, 2),
+                                "wind and speed": data_Arrival_v1_4['wind']['speed']
+                            }
+                            res_flight_v1_4 = DBFlight.objects.filter(id_users=pilot.id_users)
+                            for item_v1_4 in res_flight_v1_4:
+                                item_v1_4.reason_of_correction = 'No fly zone',
+                                item_v1_4.departure_point_weather = dict_normal_weatherDeparture_v1_4
+                                item_v1_4.arrival_point_weather = dict_original_weatherArrival_v1_4
+                                item_v1_4.save()
+                    elif data_v1['weather'][0]['description'] == 'thunderstorm':
+                        object_rotation_angel_v2 = 10 * (3.14 / 180)
+                        x_latitude_v2 = (item[0] * math.cos(object_rotation_angel_v2)) - \
+                                        (item[1] * math.sin(object_rotation_angel_v2))
+                        y_longitude_v2 = (item[0] * math.sin(object_rotation_angel_v2)) + \
+                                         (item[1] * math.cos(object_rotation_angel_v2))
+
+                        url_v2 = requests.get(
+                            "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
+                            (float(x_latitude_v2), float(y_longitude_v2), str(OPENWEATHER_API))
+                        )
+                        data_v2 = url_v2.json()
+                        temp_v2 = float(data_v2['main']['temp']) - 273.15
+                        temp_min_v2 = float(data_v2['main']['temp_min']) - 273.15
+                        temp_max_v2 = float(data_v2['main']['temp_max']) - 273.15
+                        dict_v2 = {
+                            "temp": round(temp_v2, 2),
+                            "temp_min": round(temp_min_v2, 2),
+                            "temp_max": round(temp_max_v2, 2),
+                            "wind and speed": data_v2['wind']['speed']
+                        }
+                        reason_obj_v2 = DBReason(
+                            id_users=pilot.id_users,
+                            first_reason=data_v1['weather'][0]['description'],
+                            second_reason='absent',
+                            old_departure_point=departure_point,
+                            old_arrival_point=arrival_point,
+                            new_departure_point=departure_point,
+                            original_latitude=item[0],
+                            original_longitude=item[1],
+                            changed_arrival_point=arrival_point,
+                            corrected_latitude=x_latitude_v2,
+                            corrected_longitude=y_longitude_v2,
+                            weather_new_location=data_v2['weather'][0]['description'],
+                            description_weather=dict_v2
+                        )
+                        reason_obj_v2.save()
+
+                        weather_departure_point_v2 = (departure_latitude,
+                                                      departure_longitude)
+                        weather_arrival_point_v2 = (arrival_latitude,
+                                                    arrival_longitude)
+
+                        url_Departure_v2 = requests.get(
+                            "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
+                            (float(weather_departure_point_v2[0]), float(weather_departure_point_v2[1]),
+                             str(OPENWEATHER_API))
+                        )
+                        data_Departure_v2 = url_Departure_v2.json()
+                        temp_Departure_v2 = float(data_Departure_v2['main']['temp']) - 273.15
+                        temp_min_Departure_v2 = float(data_Departure_v2['main']['temp_min']) - 273.15
+                        temp_max_Departure_v2 = float(data_Departure_v2['main']['temp_max']) - 273.15
+                        dict_original_weatherDeparture_v2 = {
+                            "conditions": data_Departure_v2['weather'][0]['description'],
+                            "temp": round(temp_Departure_v2, 2),
+                            "temp_min": round(temp_min_Departure_v2, 2),
+                            "temp_max": round(temp_max_Departure_v2, 2),
+                            "wind and speed": data_Departure_v2['wind']['speed']
+                        }
+
+                        url_Arrival_v2 = requests.get(
+                            "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
+                            (float(weather_arrival_point_v2[0]), float(weather_arrival_point_v2[1]),
+                             str(OPENWEATHER_API))
+                        )
+                        data_Arrival_v2 = url_Arrival_v2.json()
+                        temp_Arrival_v2 = float(data_Arrival_v2['main']['temp']) - 273.15
+                        temp_min_Arrival_v2 = float(data_Arrival_v2['main']['temp_min']) - 273.15
+                        temp_max_Arrival_v2 = float(data_Arrival_v2['main']['temp_max']) - 273.15
+                        dict_original_weatherArrival_v2 = {
+                            "conditions": data_Arrival_v2['weather'][0]['description'],
+                            "temp": round(temp_Arrival_v2, 2),
+                            "temp_min": round(temp_min_Arrival_v2, 2),
+                            "temp_max": round(temp_max_Arrival_v2, 2),
+                            "wind and speed": data_Arrival_v2['wind']['speed']
+                        }
+                        res_flight_v2 = DBFlight.objects.filter(id_users=pilot.id_users)
+                        for item_v2 in res_flight_v2:
+                            item_v2.flight_condition = 'with correction'
+                            item_v2.reason_of_correction = data_v1['weather'][0]['description']
+                            item_v2.weather_departure_point = dict_original_weatherDeparture_v2
+                            item_v2.weather_arrival_point = dict_original_weatherArrival_v2
+                            item_v2.save()
+                    else:
+                        weather_departure_point_v3 = (departure_latitude,
+                                                      departure_longitude)
+                        weather_arrival_point_v3 = (arrival_latitude,
+                                                    arrival_longitude)
+
+                        url_Departure_v3 = requests.get(
+                            "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
+                            (float(weather_departure_point_v3[0]), float(weather_departure_point_v3[1]),
+                             str(OPENWEATHER_API))
+                        )
+                        data_Departure_v3 = url_Departure_v3.json()
+                        temp_Departure_v3 = float(data_Departure_v3['main']['temp']) - 273.15
+                        temp_min_Departure_v3 = float(data_Departure_v3['main']['temp_min']) - 273.15
+                        temp_max_Departure_v3 = float(data_Departure_v3['main']['temp_max']) - 273.15
+                        dict_original_weatherDeparture_v3 = {
+                            "conditions": data_Departure_v3['weather'][0]['description'],
+                            "temp": round(temp_Departure_v3, 2),
+                            "temp_min": round(temp_min_Departure_v3, 2),
+                            "temp_max": round(temp_max_Departure_v3, 2),
+                            "wind and speed": data_Departure_v3['wind']['speed']
+                        }
+
+                        url_Arrival_v3 = requests.get(
+                            "http://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s" %
+                            (float(weather_arrival_point_v3[0]), float(weather_arrival_point_v3[1]),
+                             str(OPENWEATHER_API))
+                        )
+                        data_Arrival_v3 = url_Arrival_v3.json()
+                        temp_Arrival_v3 = float(data_Arrival_v3['main']['temp']) - 273.15
+                        temp_min_Arrival_v3 = float(data_Arrival_v3['main']['temp_min']) - 273.15
+                        temp_max_Arrival_v3 = float(data_Arrival_v3['main']['temp_max']) - 273.15
+                        dict_original_weatherArrival_v3 = {
+                            "conditions": data_Arrival_v3['weather'][0]['description'],
+                            "temp": round(temp_Arrival_v3, 2),
+                            "temp_min": round(temp_min_Arrival_v3, 2),
+                            "temp_max": round(temp_max_Arrival_v3, 2),
+                            "wind and speed": data_Arrival_v3['wind']['speed']
+                        }
+                        res_flight_v3 = DBFlight.objects.filter(id_users=pilot.id_users)
+                        for item_v3 in res_flight_v3:
+                            item_v3.reason_of_correction = 'absent'
+                            item_v3.departure_point_weather = dict_original_weatherDeparture_v3
+                            item_v3.arrival_point_weather = dict_original_weatherArrival_v3
+                            item_v3.save()
 
     result_one = DBFlight.objects.filter(id_users=pilot.id_users)
     return render(request, 'airlineflight.html', {'airlineflight_res': result_one})
@@ -529,7 +539,7 @@ def manual_control_request(request):
                                 changed_arrival_point=changed_arrival_point,
                                 changed_arrival_latitude=changed_arrival_latitude_v1,
                                 changed_arrival_longitude=changed_arrival_longitude_v1,
-                                distance_km=distance_km_v1
+                                distance_km=round(distance_km_v1)
                             )
                             MCR_v1.save()
 
@@ -626,6 +636,10 @@ def manual_control_request(request):
                                 "temp_max": round(temp_max_Departure_v1, 2),
                                 "wind and speed": data_Departure_v1['wind']['speed']
                             }
+
+                            medium_speed_object_v1 = random.choice(time_Flight)     #The conditional random cruising speed of the aircraft was
+                                                                                    # taken in the range from 880–926 km/h (475–500 knots)
+                            timeFlight_v1 = round(distance_km_v1)/medium_speed_object_v1
                             flight_obj_v1 = DBFlight(
                                 id_users=pilot.id_users,
                                 flight_number=DBFlight.objects.values_list('flight_number', flat=True).get(pk=unique_id),
@@ -640,8 +654,11 @@ def manual_control_request(request):
                                 arrival_point_address_airport=new_arrival_point_address_v1,
                                 arrival_point_latitude=changed_arrival_latitude_v1,
                                 arrival_point_longitude=changed_arrival_longitude_v1,
-                                distance_km=distance_km_v1,
+                                distance_km=round(distance_km_v1),
+                                flight_time=round(timeFlight_v1, 2),
                                 departure_date=datetime.now(),
+                                departure_time=datetime.now(),
+                                arrival_date=DBFlight.objects.values_list('arrival_date', flat=True).get(pk=unique_id),
                                 number_of_passengers=DBFlight.objects.values_list('number_of_passengers', flat=True).get(pk=unique_id),
                                 flight_condition='with correction',
                                 reason_of_correction=(f'MANUAL CONTROL REQUEST, '
@@ -679,7 +696,7 @@ def manual_control_request(request):
                                 changed_arrival_point=changed_arrival_point,
                                 changed_arrival_latitude=changed_arrival_latitude_v2,
                                 changed_arrival_longitude=changed_arrival_longitude_v2,
-                                distance_km=distance_km_v2
+                                distance_km=round(distance_km_v2)
                             )
                             MCR_v2.save()
 
@@ -776,6 +793,10 @@ def manual_control_request(request):
                                 "temp_max": round(temp_max_Departure_v2, 2),
                                 "wind and speed": data_Departure_v2['wind']['speed']
                             }
+
+                            medium_speed_object_v2 = random.choice(time_Flight)     #The conditional random cruising speed of the aircraft was
+                                                                                    # taken in the range from 880–926 km/h (475–500 knots)
+                            timeFlight_v2 = round(distance_km_v2)/medium_speed_object_v2
                             flight_obj_v2 = DBFlight(
                                 id_users=pilot.id_users,
                                 flight_number=DBFlight.objects.values_list('flight_number', flat=True).get(pk=unique_id),
@@ -790,8 +811,11 @@ def manual_control_request(request):
                                 arrival_point_address_airport=new_arrival_point_address_v2,
                                 arrival_point_latitude=changed_arrival_latitude_v2,
                                 arrival_point_longitude=changed_arrival_longitude_v2,
-                                distance_km=distance_km_v2,
+                                distance_km=round(distance_km_v2),
+                                flight_time=round(timeFlight_v2, 2),
                                 departure_date=datetime.now(),
+                                departure_time=datetime.now(),
+                                arrival_date=DBFlight.objects.values_list('arrival_date', flat=True).get(pk=unique_id),
                                 number_of_passengers=DBFlight.objects.values_list('number_of_passengers', flat=True).get(pk=unique_id),
                                 flight_condition='with correction',
                                 reason_of_correction=(f'MANUAL CONTROL REQUEST, '
@@ -837,6 +861,9 @@ def state_of_emergency(request):
             itemFlight.save()
     result_three = DBFlight.objects.filter(id_users=pilot.id_users)
     return render(request, 'airlineflight_blocked.html', {'airlineflight_res_v2': result_three})
+
+
+
 
 
 
